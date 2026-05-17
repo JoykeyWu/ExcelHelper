@@ -1,0 +1,22 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.pyc
+
+# Vector DB
+chroma_db/
+
+# Data & output (generated files)
+data/*.csv
+data/*.xlsx
+data/*.xls
+output/*.xlsx
+
+# Demo generator (not part of the system)
+mock_data.py
+
+# IDE
+.vscode/
+.idea/

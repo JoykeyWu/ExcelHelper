@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ExcelHelper Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #F5F4F0;
+    --surface: #FFFFFF;
+    --surface2: #EDECEA;
+    --border: #D9D7D2;
+    --border-light: #ECEAE6;
+    --text: #1A1917;
+    --text-muted: #6B6963;
+    --text-faint: #A09D99;
+    --accent: #1A1917;
+    --accent-fg: #FFFFFF;
+    --green: #1D9E75;
+    --green-bg: #E1F5EE;
+    --green-text: #085041;
+    --amber: #BA7517;
+    --amber-bg: #FAEEDA;
+    --amber-text: #633806;
+    --red: #A32D2D;
+    --red-bg: #FCEBEB;
+    --red-text: #501313;
+    --blue: #185FA5;
+    --blue-bg: #E6F1FB;
+    --blue-text: #042C53;
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 14px;
+    --sidebar: 260px;
+    --font: 'Sora', sans-serif;
+    --mono: 'IBM Plex Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* Sidebar */
+  #sidebar {
+    width: var(--sidebar);
+    min-width: var(--sidebar);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-logo {
+    padding: 18px 16px 14px;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .sidebar-logo .icon-box {
+    width: 30px; height: 30px;
+    background: var(--accent);
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .sidebar-logo .icon-box svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; }
+  .sidebar-logo .name { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
+  .sidebar-logo .tag { font-size: 10px; color: var(--text-faint); font-weight: 400; margin-top: 1px; }
+
+  .sidebar-section { padding: 12px 16px 8px; border-bottom: 1px solid var(--border-light); }
+  .sidebar-label { font-size: 10px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 8px; }
+
+  /* File upload zone */
+  .upload-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 14px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: var(--bg);
+    position: relative;
+  }
+  .upload-zone:hover { border-color: var(--accent); background: var(--surface2); }
+  .upload-zone.dragover { border-color: var(--green); background: var(--green-bg); }
+  .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+  .upload-zone .upload-icon { font-size: 20px; margin-bottom: 4px; }
+  .upload-zone p { font-size: 11px; color: var(--text-muted); }
+  .upload-zone p strong { color: var(--text); font-weight: 500; }
+
+  .file-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--green-bg);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    margin-top: 8px;
+  }
+  .file-pill svg { width: 14px; height: 14px; stroke: var(--green); fill: none; stroke-width: 2; flex-shrink: 0; }
+  .file-pill .fname { font-size: 11px; font-weight: 500; color: var(--green-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-pill .fmeta { font-size: 10px; color: var(--green); margin-top: 1px; }
+
+  /* Schema preview */
+  #schema-preview {
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    max-height: 100px;
+    overflow-y: auto;
+    line-height: 1.7;
+    margin-top: 8px;
+    display: none;
+  }
+
+  /* Sequences list */
+  .seq-list { flex: 1; overflow-y: auto; padding: 4px 16px 8px; }
+  .seq-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 7px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+    background: var(--surface);
+    margin-bottom: 6px;
+    transition: all 0.1s;
+  }
+  .seq-item:hover { border-color: var(--border); }
+  .seq-item .seq-name { font-size: 12px; font-weight: 500; }
+  .seq-item .seq-meta { font-size: 10px; color: var(--text-faint); margin-top: 1px; }
+  .seq-item .seq-btns { display: flex; gap: 4px; }
+  .seq-btn {
+    padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 500;
+    border: 1px solid var(--border); background: transparent; cursor: pointer;
+    font-family: var(--font); color: var(--text-muted); transition: all 0.1s;
+  }
+  .seq-btn:hover { background: var(--surface2); color: var(--text); }
+  .seq-btn.run { border-color: var(--green); color: var(--green-text); background: var(--green-bg); }
+  .seq-btn.run:hover { background: #9FE1CB; }
+  .seq-btn.del { border-color: var(--border); color: var(--text-faint); }
+  .seq-btn.del:hover { border-color: var(--red); color: var(--red); background: var(--red-bg); }
+
+  .seq-empty { font-size: 11px; color: var(--text-faint); text-align: center; padding: 16px 0; }
+
+  /* Main area */
+  #main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  /* Topbar */
+  #topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .topbar-title { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
+  .status-dot.active { background: var(--green); }
+  .topbar-actions { display: flex; gap: 8px; }
+  .topbar-btn {
+    padding: 5px 12px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500;
+    border: 1px solid var(--border); background: transparent; cursor: pointer;
+    font-family: var(--font); color: var(--text-muted); transition: all 0.12s;
+  }
+  .topbar-btn:hover { background: var(--surface2); color: var(--text); }
+
+  /* Content area */
+  #content {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* Chat pane */
+  #chat-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-right: 1px solid var(--border-light);
+  }
+
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .msg { display: flex; gap: 10px; max-width: 100%; animation: fadeUp 0.2s ease; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .msg-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; flex-shrink: 0; margin-top: 2px;
+  }
+  .msg.user .msg-avatar { background: var(--accent); color: #fff; order: 2; }
+  .msg.agent .msg-avatar { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+  .msg.user { flex-direction: row-reverse; }
+
+  .msg-body { max-width: 72%; }
+  .msg.user .msg-body { align-items: flex-end; display: flex; flex-direction: column; }
+
+  .msg-bubble {
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .msg.user .msg-bubble { background: var(--accent); color: #fff; border-radius: var(--radius) var(--radius) 4px var(--radius); }
+  .msg.agent .msg-bubble { background: var(--surface); border: 1px solid var(--border-light); border-radius: var(--radius) var(--radius) var(--radius) 4px; color: var(--text); }
+
+  /* Steps list inside message */
+  .steps-list {
+    margin-top: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--surface);
+    width: 100%;
+  }
+  .steps-list-header {
+    padding: 7px 12px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border-light);
+    font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-faint);
+  }
+  .step-row {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 12px;
+  }
+  .step-row:last-child { border-bottom: none; }
+  .step-num {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--surface2); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 600; color: var(--text-muted); flex-shrink: 0; margin-top: 1px;
+  }
+  .step-action { font-weight: 600; font-family: var(--mono); font-size: 11px; color: var(--blue-text); background: var(--blue-bg); padding: 1px 6px; border-radius: 4px; }
+  .step-params { font-size: 11px; color: var(--text-muted); margin-top: 3px; font-family: var(--mono); }
+
+  /* Confirm bar */
+  #confirm-bar {
+    margin: 0 24px 12px;
+    background: var(--amber-bg);
+    border: 1px solid #EF9F27;
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  #confirm-bar.visible { display: flex; }
+  .confirm-text { font-size: 13px; color: var(--amber-text); font-weight: 500; }
+  .confirm-text span { font-size: 11px; font-weight: 400; color: var(--amber); display: block; margin-top: 2px; }
+  .confirm-btns { display: flex; gap: 6px; flex-shrink: 0; }
+  .btn-exec {
+    padding: 6px 16px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600;
+    border: none; background: var(--accent); color: #fff; cursor: pointer; font-family: var(--font);
+    transition: opacity 0.1s;
+  }
+  .btn-exec:hover { opacity: 0.85; }
+  .btn-cancel {
+    padding: 6px 12px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; font-family: var(--font);
+  }
+  .btn-cancel:hover { color: var(--text); }
+
+  /* Input row */
+  #input-row {
+    padding: 12px 24px 16px;
+    background: var(--surface);
+    border-top: 1px solid var(--border-light);
+    flex-shrink: 0;
+  }
+  .input-wrap {
+    display: flex; gap: 8px; align-items: center;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 12px 8px 14px;
+    transition: border-color 0.15s;
+  }
+  .input-wrap:focus-within { border-color: var(--accent); }
+  #user-input {
+    flex: 1; border: none; background: transparent; resize: none;
+    font-family: var(--font); font-size: 13px; color: var(--text);
+    line-height: 1.5; outline: none; min-height: 20px; max-height: 120px;
+  }
+  #user-input::placeholder { color: var(--text-faint); }
+  #send-btn {
+    width: 32px; height: 32px; border-radius: var(--radius-sm); border: none;
+    background: var(--accent); color: #fff; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; flex-shrink: 0; transition: opacity 0.1s;
+  }
+  #send-btn:hover { opacity: 0.8; }
+  #send-btn svg { width: 14px; height: 14px; stroke: #fff; fill: none; stroke-width: 2.5; stroke-linecap: round; }
+  #send-btn:disabled { opacity: 0.35; cursor: default; }
+  .input-hint { font-size: 10px; color: var(--text-faint); margin-top: 6px; text-align: center; }
+
+  /* Result pane */
+  #result-pane {
+    width: 400px;
+    min-width: 320px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  .pane-header {
+    padding: 14px 18px 10px;
+    border-bottom: 1px solid var(--border-light);
+    background: var(--surface);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .pane-title { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .pane-title svg { width: 14px; height: 14px; stroke: var(--text-muted); fill: none; stroke-width: 2; }
+
+  #result-empty {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: var(--text-faint); text-align: center; padding: 24px;
+  }
+  #result-empty svg { width: 40px; height: 40px; stroke: var(--border); fill: none; stroke-width: 1.5; margin-bottom: 12px; }
+  #result-empty p { font-size: 12px; line-height: 1.7; }
+
+  #result-content { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+  #result-content.visible { display: flex; }
+
+  .result-meta {
+    padding: 10px 18px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border-light);
+    display: flex; gap: 16px;
+  }
+  .result-stat { text-align: center; }
+  .result-stat .val { font-size: 18px; font-weight: 600; font-family: var(--mono); color: var(--text); }
+  .result-stat .lbl { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 1px; }
+
+  .table-wrap {
+    flex: 1; overflow: auto;
+    padding: 12px 18px;
+  }
+  #result-table {
+    width: 100%; border-collapse: collapse; font-size: 11px;
+    font-family: var(--mono);
+  }
+  #result-table th {
+    text-align: left; padding: 6px 10px; font-size: 10px; font-weight: 600;
+    letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint);
+    background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0;
+    white-space: nowrap;
+  }
+  #result-table td {
+    padding: 6px 10px; border-bottom: 1px solid var(--border-light);
+    color: var(--text); white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis;
+  }
+  #result-table tr:hover td { background: var(--surface); }
+
+  .result-actions {
+    padding: 10px 18px;
+    background: var(--surface);
+    border-top: 1px solid var(--border-light);
+    display: flex; gap: 8px; flex-direction: column;
+  }
+  .save-row { display: flex; gap: 6px; }
+  #seq-name-input {
+    flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font-family: var(--font); font-size: 12px; color: var(--text); background: var(--bg); outline: none;
+  }
+  #seq-name-input:focus { border-color: var(--accent); }
+  .btn-save {
+    padding: 6px 14px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500;
+    border: none; background: var(--accent); color: #fff; cursor: pointer; font-family: var(--font); white-space: nowrap;
+  }
+  .btn-save:hover { opacity: 0.85; }
+  #btn-download {
+    width: 100%; padding: 7px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500;
+    border: 1px solid var(--green); background: var(--green-bg); color: var(--green-text);
+    cursor: pointer; font-family: var(--font); transition: all 0.1s; display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  #btn-download:hover { background: #9FE1CB; }
+  #btn-download svg { width: 14px; height: 14px; stroke: var(--green); fill: none; stroke-width: 2; }
+
+  /* Empty state */
+  #chat-empty {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: var(--text-faint); text-align: center; padding: 40px 32px;
+  }
+  #chat-empty svg { width: 48px; height: 48px; stroke: var(--border); fill: none; stroke-width: 1.5; margin-bottom: 16px; }
+  #chat-empty h3 { font-size: 15px; font-weight: 500; color: var(--text-muted); margin-bottom: 8px; }
+  #chat-empty p { font-size: 12px; line-height: 1.8; max-width: 260px; }
+  .hint-chips { display: flex; flex-direction: column; gap: 6px; margin-top: 20px; width: 100%; max-width: 320px; }
+  .hint-chip {
+    padding: 8px 14px; border-radius: var(--radius-sm); background: var(--surface);
+    border: 1px solid var(--border); font-size: 11px; color: var(--text-muted);
+    cursor: pointer; text-align: left; font-family: var(--font); transition: all 0.1s;
+  }
+  .hint-chip:hover { border-color: var(--accent); color: var(--text); }
+
+  /* Typing indicator */
+  .typing { display: flex; align-items: center; gap: 5px; padding: 10px 14px; }
+  .typing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); animation: bounce 1.2s infinite; }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%, 60%, 100% { transform: none; } 30% { transform: translateY(-5px); } }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--text); color: #fff; padding: 8px 18px; border-radius: var(--radius);
+    font-size: 12px; font-weight: 500; z-index: 999; animation: toastIn 0.2s ease;
+    pointer-events: none;
+  }
+  @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translateX(-50%); } }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside id="sidebar">
+  <div class="sidebar-logo">
+    <div class="icon-box">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+    </div>
+    <div>
+      <div class="name">ExcelHelper</div>
+      <div class="tag">NL Pandas Agent</div>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">Data Files</div>
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" id="file-input" accept=".csv,.xlsx,.xls" multiple>
+      <div class="upload-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#A09D99" stroke-width="2" stroke-linecap="round">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <p><strong>Click or drag</strong> to upload</p>
+      <p style="margin-top:2px">CSV XLSX (multi files OK)</p>
+    </div>
+    <div id="file-list" style="margin-top:6px; display:none;"></div>
+    <div id="schema-preview"></div>
+  </div>
+
+  <div class="sidebar-section" style="border-bottom:none;">
+    <div class="sidebar-label">Saved Sequences</div>
+  </div>
+  <div class="seq-list" id="seq-list">
+    <div class="seq-empty" id="seq-empty">No saved sequences</div>
+  </div>
+</aside>
+
+<!-- Main -->
+<div id="main">
+  <div id="topbar">
+    <div class="topbar-title">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">Upload a data file to begin</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="topbar-btn" onclick="clearChat()">Clear Chat</button>
+    </div>
+  </div>
+
+  <div id="content">
+    <!-- Chat pane -->
+    <div id="chat-pane">
+      <div id="messages">
+        <div id="chat-empty">
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          <h3>Start analyzing your data</h3>
+          <p>Upload a CSV or Excel file, then describe what you want to do in natural language</p>
+          <div class="hint-chips">
+            <button class="hint-chip" onclick="fillInput('group by circle_name, sum duration_min, add total row')">group by circle_name, sum duration_min, add total row</button>
+            <button class="hint-chip" onclick="fillInput('merge user_mapping.xlsx on user_id, then group by department')">merge user_mapping.xlsx on user_id, then group by department</button>
+            <button class="hint-chip" onclick="fillInput('filter circle_name = morning, pivot table by date')">filter circle_name = morning, pivot table by date</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Confirm bar -->
+      <div id="confirm-bar">
+        <div>
+          <div class="confirm-text" id="confirm-text">解析完成，确认执行?</div>
+          <span id="confirm-sub">0 steps</span>
+        </div>
+        <div class="confirm-btns">
+          <button class="btn-cancel" onclick="cancelSteps()">Cancel</button>
+          <button class="btn-exec" onclick="executeSteps()">Execute</button>
+        </div>
+      </div>
+
+      <!-- Input -->
+      <div id="input-row">
+        <div class="input-wrap">
+          <textarea id="user-input" rows="1" placeholder="Describe what to do... (Enter to send, Shift+Enter newline)"></textarea>
+          <button id="send-btn" onclick="sendMessage()" title="Send">
+            <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+        <div class="input-hint">Deepseek + LangChain + RAG  Sequence save &amp; one-click replay</div>
+      </div>
+    </div>
+
+    <!-- Result pane -->
+    <div id="result-pane">
+      <div class="pane-header">
+        <div class="pane-title">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+          Result Preview
+        </div>
+      </div>
+
+      <div id="result-empty">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+        <p>Results will appear here<br>after execution</p>
+      </div>
+
+      <div id="result-content">
+        <div class="result-meta">
+          <div class="result-stat">
+            <div class="val" id="result-rows">-</div>
+            <div class="lbl">Rows</div>
+          </div>
+          <div class="result-stat">
+            <div class="val" id="result-cols">-</div>
+            <div class="lbl">Cols</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="result-table"><thead></thead><tbody></tbody></table>
+        </div>
+        <div class="result-actions">
+          <button id="btn-download" onclick="downloadResult()">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download Excel
+          </button>
+          <div class="save-row">
+            <input type="text" id="seq-name-input" placeholder="Name this operation to save as sequence...">
+            <button class="btn-save" onclick="saveSequence()">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Backend API ───────────────────────────────────────────
+const API = '';  // same origin, served by FastAPI
+
+// ── State ─────────────────────────────────────────────────
+const state = {
+  fileData: null,
+  fileHeaders: [],
+  files: [],           // [{name, path, rows, cols, schema}] all uploaded files
+  filePath: '',        // primary data file path (first CSV)
+  messages: [],
+  pendingSteps: null,
+  lastExecutedSteps: null,
+  resultData: null,
+  outputFile: '',
+  sequences: [],
+  history: [],
+};
+
+// ── File handling ─────────────────────────────────────────
+
+const fileInput = document.getElementById('file-input');
+const uploadZone = document.getElementById('upload-zone');
+
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) {
+    for (const f of fileInput.files) handleFile(f);
+  }
+});
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+    // Track first file as primary for schema display
+    if (state.files.length === 0) {
+      state.fileData = data;
+      state.fileHeaders = data.length ? Object.keys(data[0]) : [];
+      const schemaEl = document.getElementById('schema-preview');
+      schemaEl.style.display = 'block';
+      schemaEl.innerHTML = state.fileHeaders.map(h => {
+        const samples = data.slice(0,3).map(r => r[h]).join(', ');
+        return '<span style="color:#1A1917;font-weight:500">' + h + '</span>: ' + samples;
+      }).join('<br>');
+      document.getElementById('status-dot').classList.add('active');
+      document.getElementById('status-text').textContent = state.files.length + ' file(s) loaded';
+      document.getElementById('chat-empty').querySelector('h3').textContent = 'Data ready. Start analyzing.';
+    }
+
+    // upload to backend
+    const formData = new FormData();
+    formData.append('file', file);
+    fetch(API + '/api/upload', { method: 'POST', body: formData })
+      .then(r => r.json())
+      .then(d => {
+        // Add to file list
+        state.files.push({ name: file.name, path: d.file_path, rows: d.rows, cols: d.cols, schema: d.schema });
+        // Set primary to first CSV
+        if (file.name.endsWith('.csv') && (!state.filePath || file.name === state.files[0].name)) {
+          state.filePath = d.file_path;
+        }
+        if (!state.filePath) state.filePath = d.file_path;
+        document.getElementById('status-text').textContent = state.files.length + ' file(s) loaded';
+        renderFileList();
+      })
+      .catch(err => console.error('Upload failed:', err));
+
+    fetchSequences();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function removeFile(index) {
+  const f = state.files[index];
+  state.files.splice(index, 1);
+  if (state.filePath === f.path) {
+    // find next CSV or first remaining
+    state.filePath = '';
+    state.fileData = null;
+    state.fileHeaders = [];
+    for (const rf of state.files) {
+      if (rf.name.endsWith('.csv') || !state.filePath) {
+        state.filePath = rf.path;
+        break;
+      }
+    }
+  }
+  if (state.files.length === 0) {
+    document.getElementById('schema-preview').style.display = 'none';
+    document.getElementById('status-dot').classList.remove('active');
+    document.getElementById('status-text').textContent = 'Upload a data file to begin';
+  }
+  renderFileList();
+}
+
+function renderFileList() {
+  const list = document.getElementById('file-list');
+  if (!state.files.length) { list.style.display = 'none'; return; }
+  list.style.display = 'block';
+  list.innerHTML = state.files.map((f, i) =>
+    '<div class="file-pill" style="position:relative;">' +
+      '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' +
+      '<div style="flex:1;">' +
+        '<div class="fname">' + escHtml(f.name) + (f.path === state.filePath ? ' <span style="color:var(--green);font-size:9px;">[primary]</span>' : '') + '</div>' +
+        '<div class="fmeta">' + f.rows + ' rows x ' + f.cols + ' cols</div>' +
+      '</div>' +
+      '<span onclick="removeFile(' + i + ')" style="cursor:pointer;font-size:14px;color:var(--text-faint);padding:2px 4px;" title="Remove">&times;</span>' +
+    '</div>'
+  ).join('');
+}
+
+// ── Sequences ─────────────────────────────────────────────
+
+function fetchSequences() {
+  fetch(API + '/api/sequences')
+    .then(r => r.json())
+    .then(data => {
+      state.sequences = data.sequences || [];
+      renderSequences();
+    })
+    .catch(() => {});
+}
+
+function renderSequences() {
+  const list = document.getElementById('seq-list');
+  const empty = document.getElementById('seq-empty');
+  if (!state.sequences.length) { empty.style.display = 'block'; list.innerHTML = ''; return; }
+  empty.style.display = 'none';
+  list.innerHTML = state.sequences.map(seq =>
+    '<div class="seq-item">' +
+      '<div>' +
+        '<div class="seq-name">' + escHtml(seq.name) + '</div>' +
+        '<div class="seq-meta">' + seq.steps_count + ' steps ' + (seq.created_at || '') + '</div>' +
+      '</div>' +
+      '<div class="seq-btns">' +
+        '<button class="seq-btn run" onclick="replaySequence(\'' + seq.name + '\')">Run</button>' +
+        '<button class="seq-btn del" onclick="deleteSequence(\'' + seq.name + '\')">Del</button>' +
+      '</div>' +
+    '</div>'
+  ).join('');
+}
+
+function saveSequence() {
+  const name = document.getElementById('seq-name-input').value.trim();
+  if (!name) { showToast('Please enter a sequence name'); return; }
+  const steps = state.lastExecutedSteps || state.pendingSteps;
+  if (!steps) { showToast('No steps to save'); return; }
+
+  fetch(API + '/api/sequences/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, steps }),
+  })
+  .then(r => r.json())
+  .then(() => {
+    document.getElementById('seq-name-input').value = '';
+    fetchSequences();
+    showToast('Saved: ' + name);
+  })
+  .catch(err => showToast('Save failed: ' + err.message));
+}
+
+function replaySequence(name) {
+  if (!state.filePath) { showToast('Please upload a data file first'); return; }
+  appendMsg('user', 'Run sequence: ' + name);
+
+  fetch(API + '/api/sequences/load', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.detail) throw new Error(data.detail);
+    return fetch(API + '/api/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ steps: data.steps, file_path: state.filePath }),
+    });
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.detail) throw new Error(data.detail);
+    state.resultData = data.data;
+    state.outputFile = data.output_file;
+    state.lastExecutedSteps = null; // from replay
+    renderResult(data);
+    appendMsg('agent', 'ExcelHelper: 序列执行完成, 结果 ' + data.rows + ' 行.');
+  })
+  .catch(err => appendMsg('agent', 'Replay failed: ' + err.message));
+}
+
+function deleteSequence(name) {
+  fetch(API + '/api/sequences/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  .then(() => { fetchSequences(); showToast('Deleted: ' + name); })
+  .catch(() => {});
+}
+
+// ── Chat ─────────────────────────────────────────────────
+
+const inputEl = document.getElementById('user-input');
+inputEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+inputEl.addEventListener('input', () => {
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+});
+
+function fillInput(text) { inputEl.value = text; inputEl.focus(); }
+
+function sendMessage() {
+  const text = inputEl.value.trim();
+  if (!text) return;
+  if (!state.filePath) { showToast('Please upload a data file first'); return; }
+
+  inputEl.value = '';
+  inputEl.style.height = 'auto';
+  appendMsg('user', text);
+  hideChatEmpty();
+
+  // check if replay by name
+  const seqMatch = state.sequences.find(s => text.includes(s.name));
+  if (seqMatch) { replaySequence(seqMatch.name); return; }
+
+  callAgent(text);
+}
+
+function callAgent(userText) {
+  const typingId = appendTyping();
+  document.getElementById('send-btn').disabled = true;
+
+  const schema = state.fileHeaders.map(h => {
+    const samples = (state.fileData||[]).slice(0,3).map(r => r[h]).join(', ');
+    return '  ' + h + ': sample=' + samples;
+  }).join('\n');
+
+  // collect schemas of other uploaded files for merge context
+  const extraSchemas = state.files
+    .filter(f => f.path !== state.filePath && f.schema)
+    .map(f => ({ name: f.name, schema: f.schema }));
+
+  fetch(API + '/api/parse', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: userText,
+      schema_info: schema,
+      history: state.history.slice(-6),
+      extra_schemas: extraSchemas,
+    }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    removeTyping(typingId);
+    document.getElementById('send-btn').disabled = false;
+    if (data.detail) throw new Error(data.detail);
+    const steps = data.steps;
+    state.pendingSteps = steps;
+    state.history.push({ user: userText, steps });
+
+    appendMsg('agent', 'ExcelHelper: parsed ' + steps.length + ' steps. Confirm to execute:', steps);
+    showConfirmBar(steps);
+  })
+  .catch(err => {
+    removeTyping(typingId);
+    document.getElementById('send-btn').disabled = false;
+    appendMsg('agent', 'Parse failed: ' + err.message + '. Is the backend running? (python server.py)');
+  });
+}
+
+function appendMsg(role, text, steps) {
+  const wrap = document.getElementById('messages');
+  const el = document.createElement('div');
+  el.className = 'msg ' + role;
+  const avatar = role === 'user' ? 'U' : 'AI';
+  let stepsHtml = '';
+  if (steps && steps.length) {
+    stepsHtml = '<div class="steps-list">' +
+      '<div class="steps-list-header">操作步骤</div>' +
+      steps.map((s,i) =>
+        '<div class="step-row">' +
+          '<div class="step-num">' + (i+1) + '</div>' +
+          '<div>' +
+            '<span class="step-action">' + escHtml(stepNameCN(s.action)) + '</span>' +
+            '<div class="step-params">' + escHtml(JSON.stringify(s.params||{})) + '</div>' +
+          '</div>' +
+        '</div>').join('') +
+      '</div>';
+  }
+  el.innerHTML =
+    '<div class="msg-avatar">' + avatar + '</div>' +
+    '<div class="msg-body">' +
+      '<div class="msg-bubble">' + escHtml(text) + '</div>' +
+      stepsHtml +
+    '</div>';
+  wrap.appendChild(el);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function appendTyping() {
+  const wrap = document.getElementById('messages');
+  const el = document.createElement('div');
+  const id = 'typing-' + Date.now();
+  el.id = id;
+  el.className = 'msg agent';
+  el.innerHTML = '<div class="msg-avatar">AI</div>' +
+    '<div class="msg-body"><div class="msg-bubble"><div class="typing">' +
+      '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>' +
+    '</div></div></div>';
+  wrap.appendChild(el);
+  wrap.scrollTop = wrap.scrollHeight;
+  return id;
+}
+
+function removeTyping(id) { const el = document.getElementById(id); if (el) el.remove(); }
+function hideChatEmpty() { const e = document.getElementById('chat-empty'); if (e) e.style.display = 'none'; }
+
+function clearChat() {
+  document.getElementById('messages').innerHTML =
+    '<div id="chat-empty">' +
+      '<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>' +
+      '<h3>Start analyzing your data</h3>' +
+      '<p>Upload a CSV or Excel file, then describe what you want to do in natural language</p>' +
+      '<div class="hint-chips">' +
+        '<button class="hint-chip" onclick="fillInput(\'group by circle_name, sum duration_min, add total row\')">group by circle_name, sum duration_min, add total row</button>' +
+        '<button class="hint-chip" onclick="fillInput(\'merge user_mapping.xlsx on user_id, then group by department\')">merge user_mapping.xlsx on user_id, then group by department</button>' +
+        '<button class="hint-chip" onclick="fillInput(\'filter circle_name = morning, pivot table by date\')">filter circle_name = morning, pivot table by date</button>' +
+      '</div>' +
+    '</div>';
+  state.messages = [];
+  state.pendingSteps = null;
+  state.history = [];
+  state.resultData = null;
+  hideConfirmBar();
+  document.getElementById('result-content').classList.remove('visible');
+  document.getElementById('result-empty').style.display = 'flex';
+}
+
+// ── Confirm / Execute ─────────────────────────────────────
+
+function showConfirmBar(steps) {
+  const bar = document.getElementById('confirm-bar');
+  document.getElementById('confirm-sub').textContent = '共 ' + steps.length + ' 步操作';
+  bar.classList.add('visible');
+}
+
+function hideConfirmBar() { document.getElementById('confirm-bar').classList.remove('visible'); }
+
+function cancelSteps() {
+  state.pendingSteps = null;
+  hideConfirmBar();
+  appendMsg('agent', 'ExcelHelper: 已取消.');
+}
+
+function executeSteps() {
+  if (!state.filePath || !state.pendingSteps) return;
+  const steps = state.pendingSteps;
+  hideConfirmBar();
+
+  fetch(API + '/api/execute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ steps, file_path: state.filePath }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.detail) throw new Error(data.detail);
+    state.lastExecutedSteps = steps;
+    state.pendingSteps = null;
+    state.resultData = data.data;
+    state.outputFile = data.output_file;
+    renderResult(data);
+    appendMsg('agent', 'ExcelHelper: 执行完成! 结果共 ' + data.rows + ' 行, 右侧预览.');
+  })
+  .catch(err => appendMsg('agent', 'Execution error: ' + err.message));
+}
+
+// ── Result ────────────────────────────────────────────────
+
+function renderResult(data) {
+  if (!data || !data.data || !data.data.length) return;
+  const headers = data.headers || Object.keys(data.data[0]);
+  document.getElementById('result-rows').textContent = data.rows;
+  document.getElementById('result-cols').textContent = data.cols;
+
+  const thead = document.querySelector('#result-table thead');
+  const tbody = document.querySelector('#result-table tbody');
+  thead.innerHTML = '<tr>' + headers.map(h => '<th title="' + h + '">' + h + '</th>').join('') + '</tr>';
+  tbody.innerHTML = data.data.slice(0, 200).map(row =>
+    '<tr>' + headers.map(h => '<td title="' + (row[h] ?? '') + '">' + (row[h] ?? '') + '</td>').join('') + '</tr>'
+  ).join('');
+
+  document.getElementById('result-empty').style.display = 'none';
+  document.getElementById('result-content').classList.add('visible');
+}
+
+function downloadResult() {
+  if (!state.outputFile) { showToast('No result to download'); return; }
+  window.open(API + '/api/download/' + state.outputFile, '_blank');
+}
+
+// ── Helpers ───────────────────────────────────────────────
+
+function stepNameCN(action) {
+  const map = {
+    load_data: '读取数据',
+    merge: '匹配关联',
+    groupby_agg: '分组聚合',
+    filter: '条件筛选',
+    sort: '排序',
+    add_total_row: '添加合计行',
+    add_column: '添加计算列',
+    pivot_table: '数据透视表',
+    export: '导出Excel',
+  };
+  return map[action] || action;
+}
+
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+fetchSequences();
+</script>
+</body>
+</html>
