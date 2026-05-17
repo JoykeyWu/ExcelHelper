@@ -1,4 +1,4 @@
-# ExcelHelper Agent
+# ExcelHelper
 
 **基于大模型的 Excel 智能数据处理 Agent —— 你说需求，它来操作，操作可记忆、可回放。**
 
