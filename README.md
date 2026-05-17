@@ -1,48 +1,110 @@
 # ExcelHelper Agent
 
-用自然语言操作 Excel —— 教一次，下次一键回放。
+**基于大模型的 Excel 智能数据处理 Agent —— 你说需求，它来操作，操作可记忆、可回放。**
 
-**Deepseek + LangChain + RAG + Pandas**
+[![Tech](https://img.shields.io/badge/LLM-Deepseek-blue)](https://platform.deepseek.com/)
+[![Framework](https://img.shields.io/badge/Framework-LangChain-green)](https://www.langchain.com/)
+[![RAG](https://img.shields.io/badge/RAG-Chroma-orange)](https://www.trychroma.com/)
+[![UI](https://img.shields.io/badge/UI-Native%20Web-lightgrey)]()
+[![License](https://img.shields.io/badge/License-MIT-yellow)]()
 
-## 它能做什么
+---
 
-上传 CSV/Excel 文件，用自然语言描述你想做的操作，AI 自动解析为 pandas 执行步骤。确认执行后，可以把这次操作保存为命名序列。下次换新数据，输入序列名或点 ▶ 即可一键回放——完全不需要再调 LLM，秒出结果。
+## 项目定位
 
-### 支持的操作
+这是一个 **LLM Agent 应用**，面向日常工作中高频的 Excel 数据处理场景：
 
-| 操作 | 说明 |
-|------|------|
-| `读取数据` | 读取 CSV/Excel 文件 |
-| `匹配关联` | 连接多张表（类似 VLOOKUP） |
-| `分组聚合` | 按列分组，求和/平均/计数等 |
-| `数据透视表` | 创建交叉透视表 |
-| `条件筛选` | 按条件过滤行 |
-| `排序` | 按列排序 |
-| `添加计算列` | 新增计算列（如 总分 = 语文 + 数学） |
-| `添加合计行` | 末尾追加合计行 |
-| `导出 Excel` | 导出结果到 Excel |
+- 每周从后台导出数据，需要做匹配、分组透视、汇总、导出报表
+- 操作步骤固定但繁琐：VLOOKUP 匹配多表 → 分组求和 → 算占比 → 加合计 → 调格式
+- 每次换了新数据，所有操作要手动重做一遍
 
-### 使用示例
+**ExcelHelper Agent 的做法**：第一遍你告诉它做什么（自然语言），它自动执行；同时把操作步骤保存下来。下次新数据来了，一句话或一键就重跑，不再需要 AI 再次理解。
+
+## 核心能力
+
+- **自然语言驱动** —— 用说话的方式描述需求，Agent 自动将指令解析为 pandas 操作序列
+- **RAG 知识增强** —— 业务规则、字段口径、计算公式写入 Markdown 文档，Agent 执行前自动检索并遵循
+- **步骤记忆与回放** —— 每次成功的操作序列可以命名保存，下次换数据直接回放
+- **多表关联** —— 支持多文件上传，Agent 感知所有表的列结构，自动推断合并键和关联方式
+- **多轮对话** —— 对话历史保留，可以对上一步结果进行调整和修正
+
+## 示例场景
+
+### 场景一：周报汇总
+
+> 你有一份 Circle 使用数据，需要按圈子分组，算总时长、人均时长、参与人数，加合计行。
+
+你只需说：
 
 ```
 按 circle_name 分组，对 duration_min 求和和平均值，加合计行
 ```
 
-```
-匹配 user_mapping.xlsx，按 user_id 关联，然后按 department 分组求总时长
-```
+Agent 自动解析为：读取数据 → 分组聚合 → 添加合计行 → 导出 Excel。保存为 `circle_weekly_report`，以后每周传新数据，直接输入序列名即可。
+
+### 场景二：多表匹配与计算
+
+> 你有三张表：语文成绩表、数学成绩表、英语成绩表，需要按姓名合并，算加权总分（40%+35%+25%）。
+
+你只需说：
 
 ```
-匹配 math.csv 和 en.csv，按姓名关联，加一列加权总分 = 语文*0.4 + 数学*0.35 + 英语*0.25
+结合这三个表，按姓名匹配，成绩按 40%+35%+25% 的比例算加权总分
 ```
 
+Agent 自动识别三张表的列结构，推断需要两次 merge，生成正确的加权公式 `语文*0.4 + 数学*0.35 + 英语*0.25`。
+
+### 场景三：业务规则约束
+
+> 你的业务规定：duration_min < 5 的记录是脏数据，测试用户（user_id 含 test）要排除，周报只统计工作日。
+
+这些规则写入 `knowledge_base/business_rules.md`，Agent 每次执行前都会通过 RAG 检索到相关规则，自动在步骤中加入 `filter` 操作。
+
+## Agent 架构
+
 ```
-只看运动挑战，按日期求总时长，升序排列
+用户输入（自然语言）
+      │
+      ▼
+┌─────────────┐
+│  RAG 检索    │ ← knowledge_base/*.md → Chroma 向量库 → 语义检索业务规则
+└─────────────┘
+      │ 业务上下文
+      ▼
+┌─────────────┐
+│  LangChain   │ ← System Prompt + Few-shot + 对话历史 + 列结构信息
+│  编排 LLM    │
+└─────────────┘
+      │ 步骤 JSON
+      ▼
+┌─────────────┐
+│  用户确认     │ ← 步骤卡片展示，可取消或修改
+└─────────────┘
+      │ 确认执行
+      ▼
+┌─────────────┐
+│  Pandas 执行  │ → 结果预览 → 导出 Excel
+└─────────────┘
+      │
+      ▼
+┌─────────────┐
+│  步骤保存     │ → steps/xxx.json → 下次一句话回放
+└─────────────┘
 ```
+
+### Agent 相关技术要点
+
+| 能力 | 实现 |
+|------|------|
+| **工具调用** | Agent 定义 9 种操作（merge / groupby / pivot_table / filter / sort / add_column / add_total_row / export），LLM 根据用户意图和当前数据列结构，自主选择工具并填参 |
+| **RAG 知识增强** | 业务文档 → `HuggingFaceEmbeddings` → Chroma 向量库 → 每次解析前检索 Top-K 相关片段，注入 System Prompt，确保 Agent 遵循业务口径 |
+| **多轮对话记忆** | LangChain 对话管理，保留最近 6 条历史，用户可以说"不对，按部门而不是按圈子分"来修正 |
+| **Schema 感知** | 每次请求将当前所有已上传文件的列名和数据类型传给 LLM，Agent 基于真实列结构生成操作 |
+| **步骤确定性** | 保存的操作序列是纯参数化 JSON，回放时不经过 LLM，100% 确定性执行 |
 
 ## 快速开始
 
-### 1. 克隆并安装
+### 1. 安装
 
 ```bash
 git clone https://github.com/yourname/excel-helper.git
@@ -50,16 +112,14 @@ cd excel-helper
 pip install -r requirements.txt
 ```
 
-### 2. 配置 API Key
+### 2. 配置
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入你的 Deepseek API Key：
-# DEEPSEEK_API_KEY=sk-你的key
-# HF_ENDPOINT=https://hf-mirror.com   （国内用户设置此项，加速模型下载）
+# 编辑 .env：
+#   DEEPSEEK_API_KEY=sk-你的key
+#   HF_ENDPOINT=https://hf-mirror.com  （国内用户）
 ```
-
-在 [platform.deepseek.com](https://platform.deepseek.com/) 注册并获取 API Key。
 
 ### 3. 启动
 
@@ -69,76 +129,54 @@ python server.py
 
 浏览器打开 `http://127.0.0.1:8765`
 
-### 4. 使用流程
+### 4. 使用
 
-1. **上传文件** —— 侧边栏上传 CSV 或 XLSX（支持多文件）
-2. **描述需求** —— 聊天框输入自然语言指令
-3. **确认步骤** —— 查看 AI 解析出的步骤卡片
-4. **执行** —— 右侧面板显示结果，可下载 Excel
-5. **保存序列** —— 命名保存，下次一键回放
-6. **回放** —— 传新数据后输入序列名，或直接点侧边栏 ▶ Run
-
-## 架构
-
-```
-excel_agent.html  ──fetch──>  server.py (FastAPI :8765)
-  （浏览器界面）                ├── /api/parse     → agent.py → RAG + Deepseek → 步骤 JSON
-                              ├── /api/execute   → executor.py → pandas → 结果
-                              ├── /api/upload    → 存储文件，返回列结构
-                              ├── /api/download  → 下载生成的 Excel
-                              └── /api/sequences → 保存/加载/回放步骤序列
-```
-
-- **只在"教"的时候调用 LLM**（自然语言 → 步骤解析）。回放是纯 pandas 执行，快速且确定。
-- **RAG 在执行前检索知识库**，将相关业务规则注入提示词，确保 AI 按正确口径工作。
-- **步骤序列** 以 JSON 文件存储在 `steps/` 目录，可手动编辑或分享。
+1. 侧边栏上传 Excel/CSV 文件
+2. 聊天框用自然语言描述需求
+3. 查看 Agent 解析的步骤卡片，点执行
+4. 右侧查看结果，下载 Excel
+5. 命名保存，下次一键回放
 
 ## 自定义知识库（可选）
 
-`knowledge_base/` 目录存放 Markdown 格式的业务知识文档。RAG 系统会在每次解析指令前，从中检索相关内容注入提示词。
+在 `knowledge_base/` 目录下创建 Markdown 文件，写入你的业务规则：
 
-- `field_glossary.md` —— 字段定义和数据质量说明
-- `business_rules.md` —— 业务规则和约束条件
-- `calc_formulas.md` —— 指标定义和计算公式
-
-**要添加你自己的业务知识**，在 `knowledge_base/` 中创建新的 `.md` 文件，然后在侧边栏点 **Rebuild KB**（或删除 `chroma_db/` 后重启）。
-
-你也可以删除整个 `knowledge_base/` —— 系统不依赖它也能正常运行。RAG 是锦上添花，不是必需品。
-
-## 项目结构
-
+```markdown
+# 数据清洗规则
+- duration_min < 5 的记录视为脏数据，分析前需排除
+- user_id 包含 "test" 的记录为测试账号，正式报表中不包含
 ```
-ExcelHelper/
-├── server.py              # FastAPI 后端入口
-├── agent.py               # LangChain: RAG → Deepseek → 步骤 JSON
-├── executor.py            # Pandas 执行引擎（9 种操作）
-├── recorder.py            # 步骤序列存取
-├── prompts.py             # System prompt + few-shot 示例
-├── knowledge.py           # RAG 向量库（Chroma）
-├── excel_agent.html       # 浏览器界面
-├── requirements.txt       # Python 依赖
-├── .env.example           # API Key 配置模板
-├── .gitignore
-├── knowledge_base/        # 业务知识文档（可选）
-│   ├── field_glossary.md
-│   ├── business_rules.md
-│   └── calc_formulas.md
-├── data/                  # 上传的文件（gitignore）
-├── steps/                 # 保存的步骤序列（JSON）
-└── output/                # 生成的 Excel 文件（gitignore）
-```
+
+点侧边栏 **Rebuild KB** 生效。不配知识库也能用——Agent 的通用理解力足以处理大多数场景。
 
 ## 技术栈
 
 | 层级 | 技术 |
 |------|------|
-| 界面 | 原生 HTML/CSS/JS（单页，无框架） |
-| 后端 | FastAPI (Python) |
-| LLM 编排 | LangChain (`ChatOpenAI` → Deepseek) |
-| RAG | Chroma + HuggingFaceEmbeddings (`all-MiniLM-L6-v2`) |
-| 数据处理 | Pandas + OpenPyXL |
-| 前端文件解析 | SheetJS (xlsx) |
-| 持久化 | JSON 文件（步骤序列）、Chroma SQLite（向量库） |
+| LLM | Deepseek Chat（通过 LangChain `ChatOpenAI` 调用） |
+| Agent 框架 | LangChain（Prompt 编排、对话记忆管理） |
+| RAG | Chroma 向量数据库 + `all-MiniLM-L6-v2` 本地 Embedding |
+| 执行引擎 | Pandas + OpenPyXL |
+| 后端 | FastAPI |
+| 前端 | 原生 HTML/CSS/JS（单页，无框架依赖） |
+| 前端文件解析 | SheetJS |
+
+## 项目结构
+
+```
+ExcelHelper/
+├── server.py              # FastAPI 后端
+├── agent.py               # Agent 核心：RAG + Deepseek → 步骤解析
+├── executor.py            # 步骤执行引擎
+├── recorder.py            # 步骤序列存取
+├── prompts.py             # System prompt + few-shot
+├── knowledge.py           # RAG 向量库
+├── excel_agent.html       # 前端界面
+├── requirements.txt
+├── .env.example
+├── knowledge_base/        # 业务知识文档
+└── steps/                 # 保存的步骤序列
+```
 
 ## License
 
